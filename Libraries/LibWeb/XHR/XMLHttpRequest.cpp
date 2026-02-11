@@ -1066,6 +1066,17 @@ WebIDL::ExceptionOr<void> XMLHttpRequest::set_with_credentials(bool with_credent
 }
 
 // https://xhr.spec.whatwg.org/#garbage-collection
+void XMLHttpRequest::finalize()
+{
+    Base::finalize();
+
+    // If an XMLHttpRequest object is garbage collected while its connection is still open,
+    // the user agent must terminate the XMLHttpRequest object's fetch controller.
+    if ((m_state == State::Opened && m_send) || m_state == State::HeadersReceived || m_state == State::Loading)
+        m_fetch_controller->terminate();
+}
+
+// https://xhr.spec.whatwg.org/#garbage-collection
 bool XMLHttpRequest::must_survive_garbage_collection() const
 {
     // An XMLHttpRequest object must not be garbage collected
@@ -1090,10 +1101,6 @@ bool XMLHttpRequest::must_survive_garbage_collection() const
         if (has_event_listener(EventNames::loadend))
             return true;
     }
-
-    // FIXME: If an XMLHttpRequest object is garbage collected while its connection is still open,
-    //        the user agent must terminate the XMLHttpRequest object’s fetch controller.
-    // NOTE: This would go in XMLHttpRequest::finalize().
 
     return false;
 }

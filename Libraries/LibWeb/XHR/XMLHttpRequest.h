@@ -33,6 +33,7 @@ class XMLHttpRequest final : public XMLHttpRequestEventTarget {
     GC_DECLARE_ALLOCATOR(XMLHttpRequest);
 
 public:
+    static constexpr bool OVERRIDES_FINALIZE = true;
     static constexpr bool OVERRIDES_MUST_SURVIVE_GARBAGE_COLLECTION = true;
 
     enum class State : u16 {
@@ -83,6 +84,7 @@ public:
 
 private:
     virtual void initialize(JS::Realm&) override;
+    virtual void finalize() override;
     virtual void visit_edges(Cell::Visitor&) override;
     virtual bool must_survive_garbage_collection() const override;
 
