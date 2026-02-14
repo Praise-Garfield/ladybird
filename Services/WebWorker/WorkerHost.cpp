@@ -284,9 +284,10 @@ void WorkerHost::run(GC::Ref<Web::Page> page, Web::HTML::TransferDataEncoder mes
         //    Fetch a classic worker script given url, outside settings, destination, inside settings, and with
         //    onComplete and performFetch as defined below.
         if (auto err = Web::HTML::fetch_classic_worker_script(m_url, outside_settings, destination, inside_settings, perform_fetch, on_complete); err.is_error()) {
-            dbgln("Failed to run worker script");
-            // FIXME: Abort the worker properly
-            TODO();
+            // FIXME: Queue a global task on the DOM manipulation task source given worker's relevant global object to fire an event named error at worker.
+            inside_settings->discard_environment();
+            dbgln("Failed to fetch classic worker script {} because {}", m_url, err.exception());
+            return;
         }
     } else {
         // -> "module":
@@ -295,9 +296,10 @@ void WorkerHost::run(GC::Ref<Web::Page> page, Web::HTML::TransferDataEncoder mes
         VERIFY(m_type == Web::Bindings::WorkerType::Module);
         // FIXME: Pass credentials
         if (auto err = Web::HTML::fetch_module_worker_script_graph(m_url, outside_settings, destination, inside_settings, perform_fetch, on_complete); err.is_error()) {
-            dbgln("Failed to run worker script");
-            // FIXME: Abort the worker properly
-            TODO();
+            // FIXME: Queue a global task on the DOM manipulation task source given worker's relevant global object to fire an event named error at worker.
+            inside_settings->discard_environment();
+            dbgln("Failed to fetch module worker script {} because {}", m_url, err.exception());
+            return;
         }
     }
 }
