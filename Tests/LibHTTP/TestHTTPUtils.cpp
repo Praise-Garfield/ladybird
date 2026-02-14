@@ -10,6 +10,7 @@
 #include <AK/String.h>
 #include <LibHTTP/Cache/Utilities.h>
 #include <LibHTTP/HTTP.h>
+#include <LibHTTP/HeaderList.h>
 
 TEST_CASE(collect_an_http_quoted_string)
 {
@@ -124,4 +125,108 @@ TEST_CASE(extract_cache_control_directive)
     EXPECT_EQ(HTTP::extract_cache_control_directive("max-age==4"sv, "max-age"sv), "=4"sv);
     EXPECT_EQ(HTTP::extract_cache_control_directive("max-age=4="sv, "max-age"sv), "4="sv);
     EXPECT(!HTTP::contains_cache_control_directive("=4"sv, "max-age"sv));
+}
+
+TEST_CASE(extract_length)
+{
+    // No Content-Length header returns null.
+    {
+        auto headers = HTTP::HeaderList::create();
+        auto result = headers->extract_length();
+        EXPECT(result.has<Empty>());
+    }
+
+    // Valid Content-Length returns the parsed value.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "42" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<u64>());
+        EXPECT_EQ(result.get<u64>(), 42u);
+    }
+
+    // Content-Length of zero.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "0" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<u64>());
+        EXPECT_EQ(result.get<u64>(), 0u);
+    }
+
+    // Empty Content-Length value returns null.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<Empty>());
+    }
+
+    // Non-digit characters return null.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "abc" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<Empty>());
+    }
+
+    // Mixed digit and non-digit characters return null.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "42abc" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<Empty>());
+    }
+
+    // Negative value returns null.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "-1" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<Empty>());
+    }
+
+    // Overflow value returns failure.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "99999999999999999999999" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<HTTP::HeaderList::ExtractLengthFailure>());
+    }
+
+    // Conflicting Content-Length values return failure.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "42" });
+        headers->append({ "Content-Length", "43" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<HTTP::HeaderList::ExtractLengthFailure>());
+    }
+
+    // Duplicate identical Content-Length values return the value.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "42" });
+        headers->append({ "Content-Length", "42" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<u64>());
+        EXPECT_EQ(result.get<u64>(), 42u);
+    }
+
+    // Maximum u64 value parses successfully.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "18446744073709551615" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<u64>());
+        EXPECT_EQ(result.get<u64>(), 18446744073709551615ULL);
+    }
+
+    // One past maximum u64 value returns failure.
+    {
+        auto headers = HTTP::HeaderList::create();
+        headers->append({ "Content-Length", "18446744073709551616" });
+        auto result = headers->extract_length();
+        EXPECT(result.has<HTTP::HeaderList::ExtractLengthFailure>());
+    }
 }

@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/AllOf.h>
+#include <AK/CharacterTypes.h>
 #include <AK/GenericLexer.h>
 #include <AK/StringUtils.h>
 #include <LibHTTP/HeaderList.h>
@@ -248,11 +250,13 @@ Variant<Empty, u64, HeaderList::ExtractLengthFailure> HeaderList::extract_length
     }
 
     // 5. If candidateValue is the empty string or has a code point that is not an ASCII digit, then return null.
+    if (candidate_value->is_empty() || !all_of(candidate_value->bytes_as_string_view(), is_ascii_digit))
+        return {};
+
     // 6. Return candidateValue, interpreted as decimal number.
-    // FIXME: This will return an empty Optional if it cannot fit into a u64, is this correct?
     auto result = candidate_value->to_number<u64>(TrimWhitespace::No);
     if (!result.has_value())
-        return {};
+        return ExtractLengthFailure {};
 
     return *result;
 }
